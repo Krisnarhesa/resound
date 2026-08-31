@@ -1,0 +1,184 @@
+{
+  "name": "resound",
+  "displayName": "ReSound",
+  "description": "Modern Music Player & Synced Lyrics inside VS Code.",
+  "version": "1.0.0",
+  "publisher": "krisnarhesa",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krisnarhesa/resound"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": ">=1.73.0"
+  },
+  "icon": "media/icon.png",
+  "keywords": [
+    "spotify",
+    "music",
+    "search",
+    "player",
+    "vibes",
+    "audio",
+    "lofi",
+    "tracks",
+    "playlists"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:resound-nowplaying",
+    "onView:resound-search",
+    "onView:resound-library",
+    "onCommand:resound.signIn",
+    "onCommand:resound.signOut",
+    "onCommand:resound.manualSignIn",
+    "onCommand:resound.playPause",
+    "onCommand:resound.next",
+    "onCommand:resound.previous",
+    "onCommand:resound.searchTracks"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "resound",
+          "title": "ReSound",
+          "icon": "resources/dark/logo.svg"
+        }
+      ]
+    },
+    "views": {
+      "resound": [
+        {
+          "id": "resound-nowplaying",
+          "name": "Now Playing",
+          "type": "webview"
+        },
+        {
+          "id": "resound-search",
+          "name": "Search",
+          "type": "webview"
+        },
+        {
+          "id": "resound-library",
+          "name": "Library",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "resound.playPause",
+        "category": "ReSound",
+        "title": "Play / Pause"
+      },
+      {
+        "command": "resound.next",
+        "category": "ReSound",
+        "title": "Next Track"
+      },
+      {
+        "command": "resound.previous",
+        "category": "ReSound",
+        "title": "Previous Track"
+      },
+      {
+        "command": "resound.searchTracks",
+        "category": "ReSound",
+        "title": "Search Tracks & Artists"
+      },
+      {
+        "command": "resound.signIn",
+        "category": "ReSound",
+        "title": "Log In with Spotify"
+      },
+      {
+        "command": "resound.signOut",
+        "category": "ReSound",
+        "title": "Log Out"
+      },
+      {
+        "command": "resound.manualSignIn",
+        "category": "ReSound",
+        "title": "Authentication Options / Enter Token"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "resound.playPause",
+        "key": "ctrl+alt+space",
+        "mac": "cmd+alt+space"
+      },
+      {
+        "command": "resound.next",
+        "key": "ctrl+alt+right",
+        "mac": "cmd+alt+right"
+      },
+      {
+        "command": "resound.previous",
+        "key": "ctrl+alt+left",
+        "mac": "cmd+alt+left"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "ReSound configuration",
+      "properties": {
+        "spotify.authServerUrl": {
+          "type": "string",
+          "default": "https://resound.krisnarhesa.dev",
+          "description": "Url to your custom auth server."
+        },
+        "spotify.clientId": {
+          "type": "string",
+          "default": "",
+          "description": "Your Spotify Application Client ID (from developer.spotify.com/dashboard) for seamless PKCE login & infinite auto-refresh."
+        },
+        "spotify.enableLogs": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to enable logs."
+        }
+      }
+    }
+  },
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "lint": "eslint src --ext ts",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "madge:circular": "npx madge --circular --extensions ts ./src"
+  },
+  "devDependencies": {
+    "@types/cheerio": "^0.22.22",
+    "@types/express": "^4.11.1",
+    "@types/minimatch": "^3.0.5",
+    "@types/mocha": "^8.0.0",
+    "@types/node": "^14.0.27",
+    "@types/node-fetch": "^2.6.13",
+    "@types/superagent": "^2.0.36",
+    "@types/vscode": "^1.73.0",
+    "@typescript-eslint/eslint-plugin": "^4.1.1",
+    "@typescript-eslint/parser": "^4.1.1",
+    "eslint": "^7.9.0",
+    "typescript": "^4.9.5",
+    "vscode-test": "^1.4.0"
+  },
+  "dependencies": {
+    "@vscodespotify/spotify-common": "1.4.1",
+    "autobind-decorator": "^2.1.0",
+    "cheerio": "^1.0.0-rc.3",
+    "child_process": "^1.0.2",
+    "express": "^4.16.2",
+    "immutable": "^3.8.2",
+    "moment": "^2.22.2",
+    "redux": "^3.7.2",
+    "redux-persist": "^5.10.0",
+    "request-light": "^0.2.1",
+    "spotify-node-applescript": "1.1.1"
+  }
+}
