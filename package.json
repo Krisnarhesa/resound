@@ -2,7 +2,7 @@
   "name": "resound",
   "displayName": "ReSound",
   "description": "Modern Music Player & Synced Lyrics inside VS Code.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "krisnarhesa",
   "repository": {
     "type": "git",
