@@ -1,8 +1,8 @@
 {
   "name": "resound",
   "displayName": "ReSound",
-  "description": "Modern Music Player & Synced Lyrics inside VS Code.",
-  "version": "1.0.3",
+  "description": "Modern Music Player & Synced Lyrics inside VS Code & Antigravity.",
+  "version": "1.0.4",
   "publisher": "krisnarhesa",
   "repository": {
     "type": "git",

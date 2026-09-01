@@ -2,6 +2,13 @@
 
 All notable changes to the "ReSound" extension will be documented in this file.
 
+## [1.0.4] - 2026-09-01
+
+### Changed
+- Replaced the extension icon with a premium classic black vinyl record featuring a bold Spotify green 'R' & 'S' monogram.
+- Updated extension description to officially include Antigravity IDE support.
+
+
 ## [1.0.3] - 2026-09-01
 
 ### Fixed
