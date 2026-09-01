@@ -2,6 +2,12 @@
 
 All notable changes to the "ReSound" extension will be documented in this file.
 
+## [1.0.3] - 2026-09-01
+
+### Fixed
+- Fixed another occurrence of the `100 URI` limit bug in the global play command handler that caused `HTTP 400` and subsequent `HTTP 429` rate limits.
+
+
 ## [1.0.2] - 2026-09-01
 
 ### Fixed

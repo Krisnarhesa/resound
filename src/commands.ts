@@ -202,8 +202,9 @@ export function createCommands(
                 const state = getState();
                 const token = cleanToken(state.loginState?.accessToken);
                 if (token) {
+                    const startIndex = Math.max(0, index ?? 0);
                     const bodyData: any = (allUris && allUris.length > 0)
-                        ? { uris: allUris.slice(0, 100), offset: { position: index ?? 0 } }
+                        ? { uris: allUris.slice(startIndex, startIndex + 100), offset: { position: 0 } }
                         : { uris: [trackUri] };
 
                     const res = await fetch('https://api.spotify.com/v1/me/player/play', {
