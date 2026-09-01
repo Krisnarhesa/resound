@@ -50,9 +50,25 @@ export class SpotifyStatusController {
                     track: { album: '', artist: '', name: '' },
                     isRunning: false
                 });
-                this._retryCount = 0;
+                // We do NOT reset retry count to 0 here so we can use it for backoff
             }
-            setTimeout(this.queryStatus, getStatusCheckInterval());
+            
+            const baseInterval = getStatusCheckInterval();
+            let delay = baseInterval;
+            
+            // If it's a rate limit (429) or repeated errors, back off significantly
+            const isRateLimit = reason && (reason.status === 429 || (reason.response && reason.response.status === 429) || (reason.message && reason.message.includes('429')));
+            
+            if (isRateLimit || this._retryCount >= this._maxRetryCount) {
+                // Exponential backoff: base * 2^retry, max 5 minutes (300000ms)
+                const backoffMultiplier = Math.min(Math.pow(2, this._retryCount - this._maxRetryCount), 60);
+                delay = Math.min(baseInterval * backoffMultiplier, 300000);
+                if (isRateLimit) {
+                    delay = Math.max(delay, 60000); // At least 1 minute wait for 429
+                }
+            }
+            
+            setTimeout(this.queryStatus, delay);
         }
     };
 

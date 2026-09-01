@@ -2,6 +2,11 @@
 
 All notable changes to the "ReSound" extension will be documented in this file.
 
+## [1.0.5] - 2026-09-01
+
+### Fixed
+- Implemented intelligent exponential backoff in the background status polling mechanism. This prevents the extension from endlessly spamming the Spotify API with requests (which previously extended API rate limit bans infinitely) when a `HTTP 429` error is encountered.
+
 ## [1.0.4] - 2026-09-01
 
 ### Changed

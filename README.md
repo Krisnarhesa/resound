@@ -127,3 +127,23 @@ Add custom keybindings inside `keybindings.json`:
 ## License
 
 Distributed under the [MIT License](LICENSE).
+
+---
+
+## Support
+
+ReSound is an open-source passion project. If this extension helps you stay productive (and sane) while coding, consider supporting the development! ☕✨
+
+<p>
+  <a href="https://saweria.co/krisnarhesa" target="_blank">
+    <img src="https://img.shields.io/badge/Saweria-FCE029?style=for-the-badge&logo=saweria&logoColor=black" alt="Support on Saweria" />
+  </a>
+  &nbsp;
+  <a href="https://trakteer.id/krisnarhesa" target="_blank">
+    <img src="https://img.shields.io/badge/Trakteer-E33939?style=for-the-badge&logo=trakteer&logoColor=white" alt="Support on Trakteer" />
+  </a>
+  &nbsp;
+  <a href="https://buymeacoffee.com/krisnarhesa" target="_blank">
+    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee" />
+  </a>
+</p>
