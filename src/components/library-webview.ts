@@ -366,6 +366,7 @@ export class LibraryWebviewProvider implements WebviewViewProvider {
                 if (this.selectedListId === 'liked-songs') {
                     const trackUris = this.tracks.map(t => t.uri).filter(Boolean);
                     if (trackUris.length > 0) {
+                        const startIndex = Math.max(0, index);
                         await fetch('https://api.spotify.com/v1/me/player/play', {
                             method: 'PUT',
                             headers: {
@@ -373,20 +374,21 @@ export class LibraryWebviewProvider implements WebviewViewProvider {
                                 'Content-Type': 'application/json'
                             },
                             body: JSON.stringify({
-                                uris: trackUris,
-                                offset: { position: index }
+                                uris: trackUris.slice(startIndex, startIndex + 100),
+                                offset: { position: 0 }
                             })
                         });
                     }
                 } else {
+                    const startIndex = Math.max(0, index);
                     const bodyData: any = this.selectedListId
                         ? {
                             context_uri: contextUri,
                             offset: { position: index }
                         }
                         : {
-                            uris: this.tracks.map(t => t.uri || (t.id ? `spotify:track:${t.id}` : '')).filter(Boolean).slice(0, 100),
-                            offset: { position: index }
+                            uris: this.tracks.map(t => t.uri || (t.id ? `spotify:track:${t.id}` : '')).filter(Boolean).slice(startIndex, startIndex + 100),
+                            offset: { position: 0 }
                         };
 
                     const res = await fetch('https://api.spotify.com/v1/me/player/play', {

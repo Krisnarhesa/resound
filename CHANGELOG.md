@@ -2,6 +2,18 @@
 
 All notable changes to the "ReSound" extension will be documented in this file.
 
+## [1.0.2] - 2026-09-01
+
+### Fixed
+- Fixed an issue where playing "Liked Songs" or large playlists would result in Spotify API `HTTP 400 Bad Request` and `HTTP 429 Too Many Requests` due to exceeding the 100 URI limit.
+
+## [1.0.1] - 2026-09-01
+
+### Changed
+- Bumped version to satisfy VS Code Marketplace and OpenVSX registry constraints for initial public release.
+
+
+
 ## [1.0.0] - 2026-08-31
 
 ### Added
