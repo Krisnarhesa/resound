@@ -20,6 +20,7 @@ export interface ITrack {
     id?: string;
     imageUrl?: string;
     durationMs?: number;
+    isEpisode?: boolean;
 }
 
 export interface ILoginState {

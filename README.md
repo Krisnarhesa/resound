@@ -52,12 +52,13 @@ ReSound uses the **Spotify Web API** by default on all platforms (**Windows, Lin
 
 - **Microsecond Interpolation**: Utilizes `requestAnimationFrame` with high-resolution `performance.now()` benchmarking to render smooth 60FPS lyric highlighting.
 - **Multi-Language Support**: Full support for English, Japanese, Indonesian, Korean, and worldwide lyrics with automated fallback.
+- **Smart Lyrics Translation (Karaoke Mode)**: Includes a built-in Romaji/Pinyin/Romaja transliterator! Instantly convert Japanese (Kanji), Chinese (Hanzi), and Korean (Hangul) lyrics into Latin characters with a single click. *(Note: Transliteration is powered by fast, offline dictionary analyzers. Some non-standard contextual song readings—such as Japanese Ateji, Chinese polyphones, or Korean artistic spellings—may not be 100% accurate).*
 - **Anti-Latency Compensation**: Audio buffer offset alignment ensures lyrics highlight precisely in sync with playback.
 
 ### 3. Live Track, Artist, and Podcast Search
 
 - **Instant Query Ingestion**: Debounced 220ms live search returns top tracks and podcast episodes with duration and cover art as you type.
-- **Queue Ingestion**: Selecting any search result immediately plays the track or podcast and queues up the surrounding results.
+- **Queue Ingestion & Playback**: Selecting any search result immediately plays the track or podcast. Full Podcast transition support ensures the UI seamlessly adapts to show episode art, duration, and smart UI modes without breaking.
 
 ### 4. Playlists, Albums and Liked Songs Hub
 

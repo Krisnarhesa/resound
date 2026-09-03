@@ -13,6 +13,8 @@ import { spotifyFetch } from '../utils/spotify-fetch';
 
 const Kuroshiro = require('kuroshiro').default;
 const KuromojiAnalyzer = require('kuroshiro-analyzer-kuromoji');
+const { pinyin } = require('pinyin-pro');
+const aromanize = require('aromanize');
 
 let kuroshiroInstance: any = null;
 let isKuroshiroInitializing = false;
@@ -58,6 +60,7 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
     private isPlaying: boolean = false;
     private isShuffle: boolean = false;
     private isLiked: boolean = false;
+    private isEpisode: boolean = false;
     private albumArtFetchedFor: string = '';
     private progressMs: number = 0;
     private durationMs: number = 0;
@@ -106,6 +109,7 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
                 this.artistName = artistName;
                 this.albumName = track?.album || '';
                 this.albumArt = track?.imageUrl || '';
+                this.isEpisode = track?.isEpisode || false;
                 this.lyrics = [];
                 this.isLoadingLyrics = true;
                 this.progressMs = player?.position || 0;
@@ -286,6 +290,13 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
 
     private async fetchLyrics(artist: string, title: string) {
         if (!artist || !title) { return; }
+        if (this.isEpisode) {
+            this.originalLyrics = [{ timeMs: -1, text: '🎙️ Podcast Episode - Enjoy listening!' }];
+            this.isLoadingLyrics = false;
+            await this.applyLyrics();
+            return;
+        }
+
         this.isLoadingLyrics = true;
 
         const cleanTitle = title.replace(/\s*-\s*.*$/, '').replace(/\(.*?\)/g, '').trim();
@@ -345,19 +356,40 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
         if (!this.isRomajiEnabled) {
             this.lyrics = this.originalLyrics;
         } else {
-            const k = await getKuroshiro();
-            if (k) {
-                // To avoid blocking too much, convert all lines
-                try {
-                    this.lyrics = await Promise.all(this.originalLyrics.map(async line => {
-                        const text = await k.convert(line.text, { to: 'romaji', mode: 'spaced' });
-                        return { ...line, text };
-                    }));
-                } catch (err) {
+            const fullText = this.originalLyrics.map(l => l.text).join('\n');
+            const hasKana = Kuroshiro.Util.hasKana(fullText);
+            const hasHangul = /[\uAC00-\uD7A3\u3130-\u318F]/.test(fullText);
+
+            if (hasHangul) {
+                // Korean (Hangul) -> Romaja
+                this.lyrics = this.originalLyrics.map(line => {
+                    return { ...line, text: aromanize.romanize(line.text) };
+                });
+            } else if (hasKana) {
+                // Japanese (Kanji + Kana) -> Romaji
+                const k = await getKuroshiro();
+                if (k) {
+                    try {
+                        this.lyrics = await Promise.all(this.originalLyrics.map(async line => {
+                            const text = await k.convert(line.text, { to: 'romaji', mode: 'spaced' });
+                            return { ...line, text };
+                        }));
+                    } catch (err) {
+                        this.lyrics = this.originalLyrics;
+                    }
+                } else {
                     this.lyrics = this.originalLyrics;
                 }
             } else {
-                this.lyrics = this.originalLyrics;
+                // Chinese (Hanzi) -> Pinyin
+                try {
+                    this.lyrics = this.originalLyrics.map(line => {
+                        const text = pinyin(line.text, { type: 'string', toneType: 'symbol' });
+                        return { ...line, text };
+                    });
+                } catch (err) {
+                    this.lyrics = this.originalLyrics;
+                }
             }
         }
         this.updateWebview();
@@ -910,7 +942,7 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
                 <span class="lyrics-heading">Synced Lyrics</span>
             </div>
             <div class="lyrics-badges">
-                <button class="btn-romaji ${this.isRomajiEnabled ? 'active' : ''}" onclick="sendCmd('toggleRomaji')" title="Toggle Romaji Translation (Kanji/Kana to Latin)">Aあ</button>
+                ${!this.isEpisode ? `<button class="btn-romaji ${this.isRomajiEnabled ? 'active' : ''}" onclick="sendCmd('toggleRomaji')" title="Translate Lyrics (Japanese, Korean, Chinese to Latin/Romaji)">Aあ</button>` : ''}
                 <span class="badge-live">Live</span>
             </div>
         </div>

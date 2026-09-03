@@ -6,6 +6,7 @@ All notable changes to the "ReSound" extension will be documented in this file.
 
 ### Added
 - **Kanji to Romaji Lyrics Converter**: Added a toggle button (`Aあ`) in the Now Playing lyrics header. Clicking this instantly translates Japanese Kanji/Kana lyrics into Latin alphabet (Romaji) so you can sing along easily!
+- **Chinese & Korean Support**: The translation toggle now automatically detects and translates Chinese (Hanzi to Pinyin) and Korean (Hangul to Romaja)!
 
 ## [1.1.5] - 2026-09-03
 

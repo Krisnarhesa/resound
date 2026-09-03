@@ -72,7 +72,17 @@ export class WebApiSpotifyClient implements SpotifyClient {
                     if (api) {
                         log('GETTING STATUS');
 
-                        const player = await api.player.get();
+                        let player: any = null;
+                        const res = await require('../utils/spotify-fetch').spotifyFetch('https://api.spotify.com/v1/me/player?additional_types=track,episode');
+                        if (res && res.ok) {
+                            if (res.status === 204) {
+                                // 204 No Content
+                                player = null;
+                            } else {
+                                player = await res.json();
+                            }
+                        }
+
                         if (!player) {
                             reject(NOT_RUNNING_REASON);
                             return;
@@ -114,7 +124,8 @@ export class WebApiSpotifyClient implements SpotifyClient {
                                     name: item?.name || '',
                                     id: item?.id || '',
                                     imageUrl,
-                                    durationMs: item?.duration_ms || 0
+                                    durationMs: item?.duration_ms || 0,
+                                    isEpisode
                                 },
                                 context: player.context ? {
                                     uri: player.context.uri,
