@@ -9,8 +9,9 @@ export function getConfig() {
 }
 
 export function isWebApiSpotifyClient() {
-    const platform = os.platform();
-    return (platform !== 'darwin' && platform !== 'linux') || getForceWebApiImplementation();
+    // Default to Web API for all platforms — works with any device (phone, browser, desktop).
+    // Users who specifically want local-only D-Bus/AppleScript can set forceWebApiImplementation to false.
+    return true;
 }
 
 export function isButtonToBeShown(buttonId: string): boolean {

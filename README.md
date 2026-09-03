@@ -13,7 +13,7 @@
 
 ReSound is inspired by the foundational concepts of `vscode-spotify`. While legacy implementations centered around basic status bar items, ReSound has been completely overhauled and refactored into a full-featured **Sidebar Activity Bar container**. It features high-precision Webview controllers, live 60FPS karaoke lyrics sync, instant track & artist search, and direct Spotify REST API integration.
 
-ReSound avoids legacy platform-specific IPC bottlenecks (such as D-Bus on Linux or AppleScript on macOS), delivering smooth, responsive performance across all major operating systems.
+ReSound uses the **Spotify Web API** by default on all platforms (**Windows, Linux, and macOS**), so it works seamlessly whether you play music on your **phone, browser, desktop app, smart TV, or any connected device** — no extra configuration needed. On Linux and macOS, a local D-Bus / AppleScript fallback is also available for offline or zero-API-usage scenarios.
 
 ### System Architecture Flow
 
@@ -91,6 +91,12 @@ Configure ReSound within your workspace `settings.json`:
   "spotify.enableLogs": false
 }
 ```
+
+| Setting | Default | Description |
+| :------ | :------ | :---------- |
+| `spotify.authServerUrl` | `https://resound.krisnarhesa.dev` | OAuth login server URL. |
+| `spotify.clientId` | `""` | Your own Spotify Client ID (optional — uses the shared one if empty). |
+| `spotify.enableLogs` | `false` | Show debug output in the ReSound output channel. |
 
 ### Keybindings Specification
 

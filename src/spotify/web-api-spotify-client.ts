@@ -81,6 +81,23 @@ export class WebApiSpotifyClient implements SpotifyClient {
                         log('GOT STATUS', JSON.stringify(player));
 
                         if (!canceled) {
+                            const item: any = player.item;
+                            const isEpisode = item?.type === 'episode';
+
+                            let album = '';
+                            let artist = '';
+                            let imageUrl = '';
+
+                            if (isEpisode) {
+                                album = item?.show?.name || 'Podcast';
+                                artist = item?.show?.publisher || 'Podcast';
+                                imageUrl = item?.images?.[0]?.url || item?.show?.images?.[0]?.url || '';
+                            } else {
+                                album = item?.album?.name || '';
+                                artist = item ? artistsToArtist(item.artists) : '';
+                                imageUrl = item?.album?.images?.[0]?.url || '';
+                            }
+
                             _cb({
                                 isRunning: player.device.is_active,
                                 playerState: {
@@ -92,16 +109,16 @@ export class WebApiSpotifyClient implements SpotifyClient {
                                     volume: player.device.volume_percent
                                 },
                                 track: {
-                                    album: player.item?.album?.name || '',
-                                    artist: player.item ? artistsToArtist(player.item.artists) : '',
-                                    name: player.item?.name || '',
-                                    id: player.item?.id || '',
-                                    imageUrl: player.item?.album?.images?.[0]?.url || '',
-                                    durationMs: player.item?.duration_ms || 0
+                                    album,
+                                    artist,
+                                    name: item?.name || '',
+                                    id: item?.id || '',
+                                    imageUrl,
+                                    durationMs: item?.duration_ms || 0
                                 },
                                 context: player.context ? {
                                     uri: player.context.uri,
-                                    trackNumber: player.item.track_number
+                                    trackNumber: item?.track_number
                                 } : void 0
                             });
                         }
