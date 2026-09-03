@@ -54,10 +54,10 @@ ReSound avoids legacy platform-specific IPC bottlenecks (such as D-Bus on Linux 
 - **Multi-Language Support**: Full support for English, Japanese, Indonesian, Korean, and worldwide lyrics with automated fallback.
 - **Anti-Latency Compensation**: Audio buffer offset alignment ensures lyrics highlight precisely in sync with playback.
 
-### 3. Live Track and Artist Search
+### 3. Live Track, Artist, and Podcast Search
 
-- **Instant Query Ingestion**: Debounced 220ms live search returns top tracks with duration and cover art as you type.
-- **Queue Ingestion**: Selecting any search result immediately plays the track and queues up the surrounding results.
+- **Instant Query Ingestion**: Debounced 220ms live search returns top tracks and podcast episodes with duration and cover art as you type.
+- **Queue Ingestion**: Selecting any search result immediately plays the track or podcast and queues up the surrounding results.
 
 ### 4. Playlists, Albums and Liked Songs Hub
 
@@ -73,7 +73,7 @@ ReSound avoids legacy platform-specific IPC bottlenecks (such as D-Bus on Linux 
 | `resound.playPause`    | `ReSound: Play / Pause`                         | Toggles the active playback state.                              |
 | `resound.next`         | `ReSound: Next Track`                           | Skips to the next track in the queue context.                   |
 | `resound.previous`     | `ReSound: Skip Back`                            | Returns to the previous track in the queue context.             |
-| `resound.searchTracks` | `ReSound: Search Tracks & Artists`              | Opens the live search view and focuses the input query bar.     |
+| `resound.searchTracks` | `ReSound: Search Tracks, Artists & Podcasts`      | Opens the live search view and focuses the input query bar.     |
 | `resound.signIn`       | `ReSound: Log In with Spotify`                  | Initiates the Spotify OAuth authentication sequence.            |
 | `resound.signOut`      | `ReSound: Log Out`                              | Clears stored authorization tokens and resets extension state.  |
 | `resound.manualSignIn` | `ReSound: Authentication Options / Enter Token` | Select login method (OAuth, manual bearer token, or Client ID). |

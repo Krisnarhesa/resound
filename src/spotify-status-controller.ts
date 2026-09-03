@@ -55,19 +55,27 @@ export class SpotifyStatusController {
             
             const baseInterval = getStatusCheckInterval();
             let delay = baseInterval;
-            
+
             // If it's a rate limit (429) or repeated errors, back off significantly
-            const isRateLimit = reason && (reason.status === 429 || (reason.response && reason.response.status === 429) || (reason.message && reason.message.includes('429')));
-            
+            const status = reason && (reason.status || (reason.response && reason.response.status));
+            const isRateLimit = status === 429 || (reason && reason.message && reason.message.includes('429'));
+
+            // Prefer Spotify's own Retry-After header when present
+            const retryAfterHeader = reason && (
+                (reason.headers && typeof reason.headers.get === 'function' && reason.headers.get('retry-after')) ||
+                (reason.response && reason.response.headers && typeof reason.response.headers.get === 'function' && reason.response.headers.get('retry-after'))
+            );
+            const retryAfterMs = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1000 : 0;
+
             if (isRateLimit || this._retryCount >= this._maxRetryCount) {
                 // Exponential backoff: base * 2^retry, max 5 minutes (300000ms)
                 const backoffMultiplier = Math.min(Math.pow(2, this._retryCount - this._maxRetryCount), 60);
                 delay = Math.min(baseInterval * backoffMultiplier, 300000);
                 if (isRateLimit) {
-                    delay = Math.max(delay, 60000); // At least 1 minute wait for 429
+                    delay = Math.max(delay, retryAfterMs || 60000);
                 }
             }
-            
+
             setTimeout(this.queryStatus, delay);
         }
     };

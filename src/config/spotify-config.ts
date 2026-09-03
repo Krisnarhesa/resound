@@ -33,11 +33,14 @@ export function getButtonPriority(buttonId: string): number {
 
 export function getStatusCheckInterval(): number {
     const isWebApiClient = isWebApiSpotifyClient();
-    let interval = getConfig().get('statusCheckInterval', 1500);
+    // Local clients (AppleScript / D-Bus) are free to poll fast. The Web API client
+    // hits api.spotify.com every tick and shares one app-wide rate limit across all
+    // users, so it gets a higher floor.
+    const configured = getConfig().get<number>('statusCheckInterval', isWebApiClient ? 3000 : 1500);
     if (isWebApiClient) {
-        interval = Math.max(interval, 1500);
+        return Math.max(configured, 2000);
     }
-    return interval;
+    return configured;
 }
 
 export function getLyricsServerUrl(): string {

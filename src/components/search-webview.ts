@@ -5,7 +5,7 @@ import {
     WebviewViewResolveContext,
     commands
 } from 'vscode';
-import fetch from 'node-fetch';
+import { spotifyFetch } from '../utils/spotify-fetch';
 import { getState, getStore } from '../store/store';
 import { cleanToken, parseSpotifyError } from '../utils/utils';
 
@@ -108,14 +108,8 @@ export class SearchWebviewProvider implements WebviewViewProvider {
         }
 
         try {
-            const res = await fetch(
-                `https://api.spotify.com/v1/search?q=${encodeURIComponent(this.lastQuery)}&type=track`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
+            const res = await spotifyFetch(
+                `https://api.spotify.com/v1/search?q=${encodeURIComponent(this.lastQuery)}&type=track,episode`
             );
 
             if (res.status === 401) {
@@ -131,19 +125,35 @@ export class SearchWebviewProvider implements WebviewViewProvider {
             }
 
             const data: any = await res.json();
-            const items = data?.tracks?.items || [];
+            const trackItems = data?.tracks?.items || [];
+            const episodeItems = data?.episodes?.items || [];
+            const items = [...trackItems, ...episodeItems];
 
             this.searchResults = items.map((item: any) => {
                 const minutes = Math.floor(item.duration_ms / 60000);
                 const seconds = Math.floor((item.duration_ms % 60000) / 1000);
-                const images = item.album?.images || [];
+                
+                let images = [];
+                let artist = '';
+                let album = '';
+                
+                if (item.type === 'episode') {
+                    images = item.images || item.show?.images || [];
+                    artist = item.show?.publisher || 'Podcast';
+                    album = item.show?.name || 'Episode';
+                } else {
+                    images = item.album?.images || [];
+                    artist = (item.artists || []).map((a: any) => a.name).join(', ');
+                    album = item.album?.name || '';
+                }
+                
                 const smallImage = images.length > 0 ? images[images.length - 1].url : '';
 
                 return {
                     id: item.id,
                     name: item.name,
-                    artist: (item.artists || []).map((a: any) => a.name).join(', '),
-                    album: item.album?.name || '',
+                    artist,
+                    album,
                     uri: item.uri,
                     imageUrl: smallImage,
                     duration: `${minutes}:${seconds.toString().padStart(2, '0')}`

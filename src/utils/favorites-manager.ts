@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import { spotifyFetch } from './spotify-fetch';
 import { cleanToken } from './utils';
 import { getState } from '../store/store';
 
@@ -27,7 +27,7 @@ class FavoritesManager {
 
         this.isLoading = true;
         try {
-            const res = await fetch('https://api.spotify.com/v1/me/tracks?limit=50', {
+            const res = await spotifyFetch('https://api.spotify.com/v1/me/tracks?limit=50', {
                 headers: { 'Authorization': `Bearer ${activeToken}`, 'Content-Type': 'application/json' }
             });
 
@@ -96,7 +96,7 @@ class FavoritesManager {
         const activeToken = token || cleanToken(getState().loginState?.accessToken);
         if (activeToken) {
             try {
-                await fetch('https://api.spotify.com/v1/me/tracks', {
+                await spotifyFetch('https://api.spotify.com/v1/me/tracks', {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${activeToken}`,
@@ -117,7 +117,7 @@ class FavoritesManager {
         const activeToken = token || cleanToken(getState().loginState?.accessToken);
         if (activeToken) {
             try {
-                await fetch('https://api.spotify.com/v1/me/tracks', {
+                await spotifyFetch('https://api.spotify.com/v1/me/tracks', {
                     method: 'DELETE',
                     headers: {
                         'Authorization': `Bearer ${activeToken}`,

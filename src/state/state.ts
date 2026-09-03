@@ -16,6 +16,10 @@ export interface ITrack {
     album: string;
     artist: string;
     name: string;
+    /** optional enrichment, filled by whichever client can provide it */
+    id?: string;
+    imageUrl?: string;
+    durationMs?: number;
 }
 
 export interface ILoginState {

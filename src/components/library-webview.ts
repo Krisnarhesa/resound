@@ -5,7 +5,7 @@ import {
     WebviewViewResolveContext,
     commands
 } from 'vscode';
-import fetch from 'node-fetch';
+import { spotifyFetch } from '../utils/spotify-fetch';
 import { getState, getStore } from '../store/store';
 import { getSpotifyWebApi, refreshAccessToken } from '../actions/actions';
 import { cleanToken, parseSpotifyError } from '../utils/utils';
@@ -153,10 +153,10 @@ export class LibraryWebviewProvider implements WebviewViewProvider {
             const token = cleanToken(state.loginState?.accessToken);
             if (token) {
                 const [plRes, likedRes] = await Promise.all([
-                    fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
+                    spotifyFetch('https://api.spotify.com/v1/me/playlists?limit=50', {
                         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                     }),
-                    fetch('https://api.spotify.com/v1/me/tracks?limit=1', {
+                    spotifyFetch('https://api.spotify.com/v1/me/tracks?limit=1', {
                         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                     }).catch(() => null)
                 ]);
@@ -203,7 +203,7 @@ export class LibraryWebviewProvider implements WebviewViewProvider {
             const state = getState();
             const token = cleanToken(state.loginState?.accessToken);
             if (token) {
-                const res = await fetch('https://api.spotify.com/v1/me/albums?limit=50', {
+                const res = await spotifyFetch('https://api.spotify.com/v1/me/albums?limit=50', {
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                 });
                 if (res.ok) {
@@ -265,7 +265,7 @@ export class LibraryWebviewProvider implements WebviewViewProvider {
                 }
 
                 const url = 'https://api.spotify.com/v1/me/tracks?limit=50';
-                let res = await fetch(url, {
+                let res = await spotifyFetch(url, {
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                 });
                 if (res.ok) {
@@ -277,7 +277,7 @@ export class LibraryWebviewProvider implements WebviewViewProvider {
                     ? `https://api.spotify.com/v1/playlists/${cleanId}`
                     : `https://api.spotify.com/v1/albums/${cleanId}`;
 
-                let res = await fetch(url, {
+                let res = await spotifyFetch(url, {
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                 });
 
@@ -286,7 +286,7 @@ export class LibraryWebviewProvider implements WebviewViewProvider {
                 } else if (res.status === 401 || res.status === 403) {
                     const newToken = await refreshAccessToken();
                     if (newToken) {
-                        const retryRes = await fetch(url, {
+                        const retryRes = await spotifyFetch(url, {
                             headers: { 'Authorization': `Bearer ${newToken}`, 'Content-Type': 'application/json' }
                         });
                         if (retryRes.ok) {
@@ -301,7 +301,7 @@ export class LibraryWebviewProvider implements WebviewViewProvider {
                         const tracksUrl = isPl
                             ? `https://api.spotify.com/v1/playlists/${cleanId}/tracks?limit=50`
                             : `https://api.spotify.com/v1/albums/${cleanId}/tracks?limit=50`;
-                        const resTracks = await fetch(tracksUrl, {
+                        const resTracks = await spotifyFetch(tracksUrl, {
                             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                         });
                         if (resTracks.ok) {
@@ -367,7 +367,7 @@ export class LibraryWebviewProvider implements WebviewViewProvider {
                     const trackUris = this.tracks.map(t => t.uri).filter(Boolean);
                     if (trackUris.length > 0) {
                         const startIndex = Math.max(0, index);
-                        await fetch('https://api.spotify.com/v1/me/player/play', {
+                        await spotifyFetch('https://api.spotify.com/v1/me/player/play', {
                             method: 'PUT',
                             headers: {
                                 'Authorization': `Bearer ${token}`,
@@ -391,7 +391,7 @@ export class LibraryWebviewProvider implements WebviewViewProvider {
                             offset: { position: 0 }
                         };
 
-                    const res = await fetch('https://api.spotify.com/v1/me/player/play', {
+                    const res = await spotifyFetch('https://api.spotify.com/v1/me/player/play', {
                         method: 'PUT',
                         headers: {
                             'Authorization': `Bearer ${token}`,
@@ -403,7 +403,7 @@ export class LibraryWebviewProvider implements WebviewViewProvider {
                     if (!res.ok) {
                         const trackUris = this.tracks.map(t => t.uri || (t.id ? `spotify:track:${t.id}` : '')).filter(Boolean);
                         const startIndex = Math.max(0, index);
-                        await fetch('https://api.spotify.com/v1/me/player/play', {
+                        await spotifyFetch('https://api.spotify.com/v1/me/player/play', {
                             method: 'PUT',
                             headers: {
                                 'Authorization': `Bearer ${token}`,

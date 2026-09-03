@@ -15,7 +15,25 @@ function generateCodeVerifier(): string {
     return base64UrlEncode(crypto.randomBytes(32));
 }
 
+function codeChallengeFor(verifier: string): string {
+    return base64UrlEncode(crypto.createHash('sha256').update(verifier).digest());
+}
+
+/** Scopes ReSound needs (playback control + library read/write). */
+const SPOTIFY_SCOPES = [
+    'user-read-playback-state',
+    'user-modify-playback-state',
+    'user-read-currently-playing',
+    'user-library-read',
+    'user-library-modify',
+    'playlist-read-private',
+    'playlist-read-collaborative'
+].join(' ');
+
+const PKCE_REDIRECT_URI = 'http://127.0.0.1:8350/callback';
+
 import { createDisposableAuthSever } from '../auth/server/local';
+import { refreshSpotifyToken } from '../auth/refresh';
 import { getAuthServerUrl, getClientId, getConfig } from '../config/spotify-config';
 import { SIGN_IN_COMMAND } from '../consts/consts';
 import { log, showInformationMessage, showWarningMessage, showErrorMessage } from '../info/info';
@@ -23,7 +41,7 @@ import { isAlbum } from '../isAlbum';
 import { DUMMY_PLAYLIST, ILoginState, ISpotifyStatusState, Album } from '../state/state';
 import { getState, getStore } from '../store/store';
 import { artistsToArtist, cleanToken } from '../utils/utils';
-import fetch from 'node-fetch';
+import { spotifyFetch } from '../utils/spotify-fetch';
 import { URLSearchParams } from 'url';
 import {
     UpdateStateAction,
@@ -165,7 +183,7 @@ class ActionCreator {
         const token = cleanToken(state.loginState?.accessToken);
         if (token) {
             try {
-                const res = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
+                const res = await spotifyFetch('https://api.spotify.com/v1/me/playlists?limit=50', {
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                 });
                 if (res.ok) {
@@ -198,7 +216,7 @@ class ActionCreator {
         const token = cleanToken(state.loginState?.accessToken);
         if (token) {
             try {
-                const res = await fetch('https://api.spotify.com/v1/me/albums?limit=50', {
+                const res = await spotifyFetch('https://api.spotify.com/v1/me/albums?limit=50', {
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                 });
                 if (res.ok) {
@@ -316,7 +334,7 @@ class ActionCreator {
                     : `https://api.spotify.com/v1/albums/${listId}`;
 
                 let data: any = null;
-                const res = await fetch(endpoint, {
+                const res = await spotifyFetch(endpoint, {
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                 });
 
@@ -325,7 +343,7 @@ class ActionCreator {
                 } else if (res.status === 401 || res.status === 403) {
                     const newToken = await refreshAccessToken();
                     if (newToken) {
-                        const retryRes = await fetch(endpoint, {
+                        const retryRes = await spotifyFetch(endpoint, {
                             headers: { 'Authorization': `Bearer ${newToken}`, 'Content-Type': 'application/json' }
                         });
                         if (retryRes.ok) {
@@ -416,6 +434,13 @@ class ActionCreator {
 
     @autobind
     async actionSignIn() {
+        // Default "Log In with Spotify" — ALWAYS through the ReSound web server.
+        // Clear any custom Client ID so this really is a switch back to shared login
+        // (own-client login is a separate, explicit menu action).
+        if (getClientId()) {
+            await getConfig().update('clientId', undefined, true);
+        }
+
         const { createServerPromise, dispose } = createDisposableAuthSever();
         const authServerUrl = getAuthServerUrl() || 'https://resound.krisnarhesa.dev';
 
@@ -428,6 +453,40 @@ class ActionCreator {
                 const errMsg = typeof e === 'string' ? e : JSON.stringify(e);
                 showErrorMessage(`Gagal login: ${errMsg}`);
                 dispose();
+            });
+        });
+    }
+
+    /** Explicit opt-in: PKCE straight to Spotify against the user's own app. */
+    @autobind
+    async actionSignInWithClientId(clientId: string) {
+        const codeVerifier = generateCodeVerifier();
+        const { createServerPromise, dispose } = createDisposableAuthSever(clientId, codeVerifier);
+        const authUrl = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
+            client_id: clientId,
+            response_type: 'code',
+            redirect_uri: PKCE_REDIRECT_URI,
+            code_challenge_method: 'S256',
+            code_challenge: codeChallengeFor(codeVerifier),
+            scope: SPOTIFY_SCOPES
+        }).toString();
+
+        commands.executeCommand('vscode.open', Uri.parse(authUrl)).then(() => {
+            createServerPromise.then(({ accessToken, refreshToken }) => {
+                this._actionSignIn(accessToken, refreshToken);
+                showInformationMessage('ReSound: Login berhasil (client ID sendiri).');
+                dispose();
+            }).catch(async e => {
+                const errMsg = typeof e === 'string' ? e : (e && e.message) || JSON.stringify(e);
+                dispose();
+                const reset = 'Reset to shared login';
+                const pick = await showWarningMessage(
+                    `Custom Client ID login failed: ${errMsg}. Check the Client ID and that http://127.0.0.1:8350/callback is in the app's Redirect URIs.`,
+                    reset
+                );
+                if (pick === reset) {
+                    this.actionSignIn();
+                }
             });
         });
     }
@@ -454,24 +513,7 @@ class ActionCreator {
 export const actionsCreator = new ActionCreator();
 
 export async function refreshAccessToken(): Promise<string | null> {
-    const state = getState();
-    const refreshToken = state.loginState?.refreshToken;
-    const authServerUrl = getAuthServerUrl() || 'https://resound.krisnarhesa.dev';
-    if (!refreshToken) { return null; }
-
-    try {
-        const res = await fetch(`${authServerUrl}/refresh_token?refresh_token=${encodeURIComponent(refreshToken)}`);
-        if (res.ok) {
-            const data: any = await res.json();
-            const newAccessToken = data.access_token || data.accessToken;
-            if (newAccessToken) {
-                const newRefreshToken = data.refresh_token || data.refreshToken || refreshToken;
-                actionsCreator._actionSignIn(newAccessToken, newRefreshToken);
-                return newAccessToken;
-            }
-        }
-    } catch { /* silent */ }
-    return null;
+    return refreshSpotifyToken();
 }
 
 

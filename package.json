@@ -2,7 +2,7 @@
   "name": "resound",
   "displayName": "ReSound",
   "description": "Modern Music Player & Synced Lyrics inside VS Code & Antigravity.",
-  "version": "1.0.5",
+  "version": "1.1.4",
   "publisher": "krisnarhesa",
   "repository": {
     "type": "git",
@@ -87,7 +87,7 @@
       {
         "command": "resound.searchTracks",
         "category": "ReSound",
-        "title": "Search Tracks & Artists"
+        "title": "Search Tracks, Artists & Podcasts"
       },
       {
         "command": "resound.signIn",

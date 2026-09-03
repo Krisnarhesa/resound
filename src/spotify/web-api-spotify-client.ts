@@ -92,9 +92,12 @@ export class WebApiSpotifyClient implements SpotifyClient {
                                     volume: player.device.volume_percent
                                 },
                                 track: {
-                                    album: player.item.album.name,
-                                    artist: artistsToArtist(player.item.artists),
-                                    name: player.item.name
+                                    album: player.item?.album?.name || '',
+                                    artist: player.item ? artistsToArtist(player.item.artists) : '',
+                                    name: player.item?.name || '',
+                                    id: player.item?.id || '',
+                                    imageUrl: player.item?.album?.images?.[0]?.url || '',
+                                    durationMs: player.item?.duration_ms || 0
                                 },
                                 context: player.context ? {
                                     uri: player.context.uri,

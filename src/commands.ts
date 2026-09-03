@@ -1,4 +1,4 @@
-import { commands, Disposable, window } from 'vscode';
+import { commands, Disposable, Uri, window } from 'vscode';
 
 import { actionsCreator, getSpotifyWebApi, refreshAccessToken } from './actions/actions';
 import { getTrackInfoClickBehaviour } from './config/spotify-config';
@@ -10,7 +10,7 @@ import { SIGN_IN_COMMAND } from './consts/consts';
 import { SearchWebviewProvider } from './components/search-webview';
 import { NowPlayingWebviewProvider } from './components/nowplaying-webview';
 import { LibraryWebviewProvider } from './components/library-webview';
-import fetch from 'node-fetch';
+import { spotifyFetch } from './utils/spotify-fetch';
 import { getState } from './store/store';
 import { showWarningMessage, showInformationMessage } from './info/info';
 import { cleanToken, parseSpotifyError } from './utils/utils';
@@ -42,25 +42,25 @@ export function createCommands(
             try {
                 const callApi = async (tok: string): Promise<boolean> => {
                     if (endpoint === 'next') {
-                        const res = await fetch('https://api.spotify.com/v1/me/player/next', {
+                        const res = await spotifyFetch('https://api.spotify.com/v1/me/player/next', {
                             method: 'POST',
                             headers: { 'Authorization': `Bearer ${tok}` }
                         });
                         return res.ok || res.status === 204;
                     } else if (endpoint === 'previous') {
-                        const res = await fetch('https://api.spotify.com/v1/me/player/previous', {
+                        const res = await spotifyFetch('https://api.spotify.com/v1/me/player/previous', {
                             method: 'POST',
                             headers: { 'Authorization': `Bearer ${tok}` }
                         });
                         return res.ok || res.status === 204;
                     } else if (endpoint === 'play') {
-                        const res = await fetch('https://api.spotify.com/v1/me/player/play', {
+                        const res = await spotifyFetch('https://api.spotify.com/v1/me/player/play', {
                             method: 'PUT',
                             headers: { 'Authorization': `Bearer ${tok}` }
                         });
                         return res.ok || res.status === 204;
                     } else if (endpoint === 'pause') {
-                        const res = await fetch('https://api.spotify.com/v1/me/player/pause', {
+                        const res = await spotifyFetch('https://api.spotify.com/v1/me/player/pause', {
                             method: 'PUT',
                             headers: { 'Authorization': `Bearer ${tok}` }
                         });
@@ -68,7 +68,7 @@ export function createCommands(
                     } else if (endpoint === 'playPause') {
                         let isPlaying = nowPlayingProvider ? nowPlayingProvider.getIsPlaying() : false;
                         try {
-                            const curRes = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+                            const curRes = await spotifyFetch('https://api.spotify.com/v1/me/player/currently-playing', {
                                 headers: { 'Authorization': `Bearer ${tok}` }
                             });
                             if (curRes.ok && curRes.status !== 204) {
@@ -82,7 +82,7 @@ export function createCommands(
                         const targetUrl = isPlaying
                             ? 'https://api.spotify.com/v1/me/player/pause'
                             : 'https://api.spotify.com/v1/me/player/play';
-                        const res = await fetch(targetUrl, {
+                        const res = await spotifyFetch(targetUrl, {
                             method: 'PUT',
                             headers: { 'Authorization': `Bearer ${tok}` }
                         });
@@ -141,10 +141,13 @@ export function createCommands(
     const signIn = regCmd('signIn', () => actionsCreator.actionSignIn());
     const signOut = regCmd('signOut', actionsCreator.actionSignOut);
     const manualSignIn = regCmd('manualSignIn', async () => {
-        const option = await window.showQuickPick([
+        const { getConfig, getClientId } = await import('./config/spotify-config');
+        const hasCustomClient = !!getClientId();
+
+        const items: any[] = [
             {
                 label: '$(zap) Log In with Spotify (Auto-Refresh Forever)',
-                description: 'Recommended: Authorize once in browser, tokens never expire',
+                description: hasCustomClient ? 'Uses your configured Client ID' : 'Recommended: authorize once, tokens never expire',
                 id: 'oauth'
             },
             {
@@ -153,11 +156,20 @@ export function createCommands(
                 id: 'token'
             },
             {
-                label: '$(gear) Configure Spotify Client ID',
-                description: 'Set custom Client ID from developer.spotify.com/dashboard',
+                label: '$(gear) Use my own Spotify Client ID (own rate limit)',
+                description: 'Advanced: log in against your own app from developer.spotify.com/dashboard',
                 id: 'client_id'
             }
-        ], {
+        ];
+        if (hasCustomClient) {
+            items.push({
+                label: '$(discard) Reset to ReSound shared login',
+                description: 'Clear the custom Client ID and use the default login',
+                id: 'reset_client'
+            });
+        }
+
+        const option = await window.showQuickPick(items, {
             placeHolder: 'Select Spotify Authentication Method'
         });
 
@@ -165,17 +177,30 @@ export function createCommands(
 
         if (option.id === 'oauth') {
             await actionsCreator.actionSignIn();
+        } else if (option.id === 'reset_client') {
+            await getConfig().update('clientId', undefined, true);
+            showInformationMessage('Reset to ReSound shared login. Logging in now.');
+            await actionsCreator.actionSignIn();
         } else if (option.id === 'client_id') {
+            const help = 'Open Spotify Dashboard';
+            const pick = await window.showInformationMessage(
+                'Create an app at developer.spotify.com/dashboard, add redirect URI http://127.0.0.1:8350/callback, then paste its Client ID.',
+                help, 'I have my Client ID'
+            );
+            if (pick === help) {
+                await commands.executeCommand('vscode.open', Uri.parse('https://developer.spotify.com/dashboard'));
+            }
+            if (!pick) { return; }
             const input = await window.showInputBox({
-                prompt: 'Enter your Spotify Client ID from developer.spotify.com/dashboard',
-                placeHolder: 'e.g. 7d4981fa5e9b4661858a74e5...',
-                ignoreFocusOut: true
+                prompt: 'Spotify Client ID (32 hex chars). Not the client secret, not a token.',
+                placeHolder: 'e.g. 7d4981fa5e9b4661858a74e5b3c2d1a0',
+                ignoreFocusOut: true,
+                validateInput: (v) => /^[0-9a-f]{32}$/i.test(v.trim()) ? undefined : 'A Spotify Client ID is exactly 32 hex characters.'
             });
             if (input) {
-                const { getConfig } = await import('./config/spotify-config');
                 await getConfig().update('clientId', input.trim(), true);
-                showInformationMessage('Spotify Client ID saved! Now click "Log In with Spotify" to connect.');
-                await actionsCreator.actionSignIn();
+                showInformationMessage('Client ID saved. Confirm http://127.0.0.1:8350/callback is in your app\'s Redirect URIs, then logging in now.');
+                await actionsCreator.actionSignInWithClientId(input.trim());
             }
         } else if (option.id === 'token') {
             const input = await window.showInputBox({
@@ -207,7 +232,7 @@ export function createCommands(
                         ? { uris: allUris.slice(startIndex, startIndex + 100), offset: { position: 0 } }
                         : { uris: [trackUri] };
 
-                    const res = await fetch('https://api.spotify.com/v1/me/player/play', {
+                    const res = await spotifyFetch('https://api.spotify.com/v1/me/player/play', {
                         method: 'PUT',
                         headers: {
                             'Authorization': `Bearer ${token}`,

@@ -6,10 +6,10 @@ import {
     commands
 } from 'vscode';
 import fetch from 'node-fetch';
-import { getState } from '../store/store';
+import { getState, getStore } from '../store/store';
 import { cleanToken } from '../utils/utils';
-import { refreshAccessToken } from '../actions/actions';
 import { favoritesManager } from '../utils/favorites-manager';
+import { spotifyFetch } from '../utils/spotify-fetch';
 
 export interface SyncedLyricLine {
     timeMs: number;
@@ -28,24 +28,79 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
     private albumArt: string = '';
     private lyrics: SyncedLyricLine[] = [];
     private isLoadingLyrics: boolean = false;
-    private pollInterval: any = null;
+    private storeUnsub: (() => void) | undefined;
     private isPlaying: boolean = false;
     private isShuffle: boolean = false;
     private isLiked: boolean = false;
-    private isFetching: boolean = false;
+    private albumArtFetchedFor: string = '';
     private progressMs: number = 0;
     private durationMs: number = 0;
 
     constructor() {
-        this.pollInterval = setInterval(() => {
-            this.fetchCurrentlyPlaying();
-        }, 500);
+        // Driven entirely by the shared status poller (spotify-status-controller):
+        // on Linux/macOS that's a free local OS query, on Windows the single Web API
+        // /me/player poll. No independent polling here — zero extra API calls.
+        this.storeUnsub = getStore().subscribe(() => this.onStoreChange());
     }
 
+    /** re-read the store and push the current track/progress to the webview */
     public triggerFetch() {
-        this.fetchCurrentlyPlaying();
-        setTimeout(() => this.fetchCurrentlyPlaying(), 150);
-        setTimeout(() => this.fetchCurrentlyPlaying(), 450);
+        this.onStoreChange();
+    }
+
+    public dispose() {
+        if (this.storeUnsub) { this.storeUnsub(); this.storeUnsub = undefined; }
+    }
+
+    private onStoreChange() {
+        if (!this._view || !this._view.visible) { return; }
+        try {
+            const state = getState();
+            const track = state?.track;
+            const player = state?.playerState;
+            const trackName = track?.name || '';
+            const artistName = track?.artist || '';
+            if (!trackName && !artistName) { return; }
+
+            this.isPlaying = player?.state === 'playing';
+            if (typeof player?.position === 'number' && player.position > 0) {
+                this.progressMs = player.position;
+            }
+            if (track?.durationMs) { this.durationMs = track.durationMs; }
+            this.isShuffle = !!player?.isShuffling;
+
+            const newKey = `${artistName} - ${trackName}`;
+            const trackChanged = newKey !== this.currentTrackKey && newKey !== ' - ';
+            this.isLiked = favoritesManager.isLiked(track?.id || this.currentTrackId, trackName, artistName);
+
+            if (trackChanged) {
+                this.currentTrackKey = newKey;
+                this.currentTrackId = track?.id || '';
+                this.trackName = trackName;
+                this.artistName = artistName;
+                this.albumName = track?.album || '';
+                this.albumArt = track?.imageUrl || '';
+                this.lyrics = [];
+                this.isLoadingLyrics = true;
+                this.progressMs = player?.position || 0;
+                this.updateWebview();
+
+                if (!this.albumArt && this.albumArtFetchedFor !== newKey) {
+                    this.albumArtFetchedFor = newKey;
+                    this.fetchAlbumArt(artistName, trackName);
+                }
+                this.fetchLyrics(artistName, trackName);
+            } else if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'updatePlayback',
+                    progressMs: this.progressMs,
+                    durationMs: this.durationMs,
+                    isPlaying: this.isPlaying,
+                    isShuffle: this.isShuffle,
+                    isLiked: this.isLiked
+                });
+            }
+        } catch (e) { /* silent */ }
     }
 
     public getIsPlaying(): boolean {
@@ -64,6 +119,10 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
             this._view = undefined;
         });
 
+        webviewView.onDidChangeVisibility(() => {
+            if (webviewView.visible) { this.triggerFetch(); }
+        });
+
         webviewView.webview.onDidReceiveMessage(async (message) => {
             if (['previous', 'playPause', 'next', 'seek', 'toggleShuffle', 'toggleLike'].includes(message.command)) {
                 await this.handleControlCommand(message);
@@ -71,7 +130,7 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
         });
 
         this.updateWebview();
-        this.fetchCurrentlyPlaying();
+        this.triggerFetch();
     }
 
     private async handleControlCommand(message: any) {
@@ -82,17 +141,17 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
         if (token) {
             try {
                 if (command === 'previous') {
-                    await fetch('https://api.spotify.com/v1/me/player/previous', {
+                    await spotifyFetch('https://api.spotify.com/v1/me/player/previous', {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                 } else if (command === 'next') {
-                    await fetch('https://api.spotify.com/v1/me/player/next', {
+                    await spotifyFetch('https://api.spotify.com/v1/me/player/next', {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                 } else if (command === 'seek') {
-                    await fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${message.positionMs}`, {
+                    await spotifyFetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${message.positionMs}`, {
                         method: 'PUT',
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
@@ -101,15 +160,12 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
                     const endpoint = this.isPlaying
                         ? 'https://api.spotify.com/v1/me/player/pause'
                         : 'https://api.spotify.com/v1/me/player/play';
-                    await fetch(endpoint, {
-                        method: 'PUT',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
+                    await spotifyFetch(endpoint, { method: 'PUT' });
                     this.isPlaying = !this.isPlaying;
                 } else if (command === 'toggleShuffle') {
                     const nextShuffle = !this.isShuffle;
                     this.isShuffle = nextShuffle;
-                    await fetch(`https://api.spotify.com/v1/me/player/shuffle?state=${nextShuffle}`, {
+                    await spotifyFetch(`https://api.spotify.com/v1/me/player/shuffle?state=${nextShuffle}`, {
                         method: 'PUT',
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
@@ -117,7 +173,7 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
                     let targetId = this.currentTrackId;
                     if (!targetId && this.trackName) {
                         try {
-                            const searchRes = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(this.trackName + ' ' + this.artistName)}&type=track&limit=1`, {
+                            const searchRes = await spotifyFetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(this.trackName + ' ' + this.artistName)}&type=track&limit=1`, {
                                 headers: { 'Authorization': `Bearer ${token}` }
                             });
                             if (searchRes.ok) {
@@ -169,118 +225,14 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
         this.triggerFetch();
     }
 
-    private async fetchCurrentlyPlaying() {
-        if (!this._view || this.isFetching) { return; }
-        this.isFetching = true;
-        try {
-            const state = getState();
-            const token = cleanToken(state.loginState?.accessToken);
-            if (!token) {
-                this.checkStoreTrack();
-                return;
-            }
-
-            const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (res.status === 204 || !res.ok) {
-                this.checkStoreTrack();
-                return;
-            }
-
-            const data: any = await res.json();
-            if (!data || !data.item) {
-                this.checkStoreTrack();
-                return;
-            }
-
-            const item = data.item;
-            const trackId = item.id || '';
-            const trackName = item.name || '';
-            const artistName = (item.artists || []).map((a: any) => a.name).join(', ');
-            const albumName = item.album?.name || '';
-            const albumArtUrl = item.album?.images?.[0]?.url || '';
-
-            this.isPlaying = data.is_playing ?? false;
-            this.progressMs = data.progress_ms ?? 0;
-            this.durationMs = item.duration_ms || 0;
-
-            const newKey = `${artistName} - ${trackName}`;
-            this.isLiked = favoritesManager.isLiked(trackId, trackName, artistName);
-
-            if (newKey !== this.currentTrackKey && trackName) {
-                this.currentTrackKey = newKey;
-                this.currentTrackId = trackId;
-                this.trackName = trackName;
-                this.artistName = artistName;
-                this.albumName = albumName;
-                this.albumArt = albumArtUrl;
-                this.lyrics = [];
-                this.isLoadingLyrics = true;
-
-                this.updateWebview();
-                await this.fetchLyrics(artistName, trackName);
-            } else {
-                if (this._view) {
-                    this._view.webview.postMessage({
-                        command: 'updatePlayback',
-                        progressMs: this.progressMs,
-                        durationMs: this.durationMs,
-                        isPlaying: this.isPlaying,
-                        isShuffle: this.isShuffle,
-                        isLiked: this.isLiked
-                    });
-                }
-            }
-        } catch (e) {
-            this.checkStoreTrack();
-        } finally {
-            this.isFetching = false;
-        }
-    }
-
-    private checkStoreTrack() {
-        try {
-            const state = getState();
-            const track = state?.track;
-            const trackName = track?.name || '';
-            const artistName = track?.artist || '';
-
-            if (!trackName && !artistName) { return; }
-
-            const newKey = `${artistName} - ${trackName}`;
-            this.isLiked = favoritesManager.isLiked(this.currentTrackId, trackName, artistName);
-
-            if (newKey !== this.currentTrackKey && newKey !== ' - ' && trackName) {
-                this.currentTrackKey = newKey;
-                this.trackName = trackName;
-                this.artistName = artistName;
-                this.albumName = track?.album || '';
-                this.lyrics = [];
-                this.isLoadingLyrics = true;
-                this.updateWebview();
-
-                this.fetchAlbumArt(artistName, trackName);
-                this.fetchLyrics(artistName, trackName);
-            }
-        } catch (e) { /* silent */ }
-    }
-
     private async fetchAlbumArt(artist: string, title: string) {
         try {
             const state = getState();
             const token = cleanToken(state.loginState?.accessToken);
             if (!token) { return; }
 
-            const res = await fetch(
-                `https://api.spotify.com/v1/search?q=${encodeURIComponent(`${artist} ${title}`)}&type=track&limit=1`,
-                {
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-                }
+            const res = await spotifyFetch(
+                `https://api.spotify.com/v1/search?q=${encodeURIComponent(`${artist} ${title}`)}&type=track&limit=1`
             );
 
             if (res.ok) {

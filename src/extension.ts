@@ -28,6 +28,7 @@ export function activate(context: ExtensionContext) {
         window.registerWebviewViewProvider('resound-nowplaying', nowPlayingProvider),
         window.registerWebviewViewProvider('resound-search', searchWebviewProvider),
         window.registerWebviewViewProvider('resound-library', libraryProvider),
+        nowPlayingProvider,
         controller,
         spotifyStatus,
         createCommands(SpoifyClientSingleton.getSpotifyClient(), searchWebviewProvider, nowPlayingProvider, libraryProvider)

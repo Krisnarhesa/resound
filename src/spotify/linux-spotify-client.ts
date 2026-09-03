@@ -18,6 +18,7 @@ const pauseDebianCmd = createCommandString('Pause');
 const playNextTrackDebianCmd = createCommandString('Next');
 const playPreviousTrackDebianCmd = createCommandString('Previous');
 const getPlaybackStatus = `dbus-send --print-reply --dest=${SP_DEST} ${SP_PATH} ${DB_P_GET} string:${SP_MEMB} string:PlaybackStatus`;
+const getPosition = `dbus-send --print-reply --dest=${SP_DEST} ${SP_PATH} ${DB_P_GET} string:${SP_MEMB} string:Position`;
 // @see https://gist.github.com/wandernauta/6800547
 /**
  * Example response
@@ -236,18 +237,36 @@ export class LinuxSpotifyClient extends OsAgnosticSpotifyClient implements Spoti
             }
             const state = playbackStatus.indexOf('Playing') ? 'playing' : 'paused';
 
+            // dbus gives us these too — parse them so the Now Playing panel never
+            // needs a Web API call just to draw the current track / art / progress.
+            const lengthUs = parseInt((/length\|(\d+)/.exec(metadata) || [])[1] || '0', 10);
+            const rawArt = (/artUrl\|(\S+)/.exec(metadata) || [])[1] || '';
+            const artUrl = rawArt.replace('open.spotify.com/image/', 'i.scdn.co/image/');
+            const trackUri = (/trackid\|(\S+)/.exec(metadata) || [])[1] || '';
+            const trackId = trackUri.startsWith('spotify:track:') ? trackUri.slice('spotify:track:'.length) : '';
+
+            let positionMs = 0;
+            try {
+                const pos = await terminalCommand(getPosition);
+                const posUs = parseInt((/int64\s+(\d+)/.exec(pos) || [])[1] || '0', 10);
+                positionMs = Math.floor(posUs / 1000);
+            } catch (ignored) { log(ignored); }
+
             const result: ISpotifyStatusStatePartial = {
                 playerState: {
                     state,
                     volume: 100, // dbus doesn't return real value for this
-                    position: 0, // dbus doesn't return real value for this,
+                    position: positionMs,
                     isRepeating: false, // dbus doesn't return real value for this
                     isShuffling: false// dbus doesn't return real value for this
                 },
                 track: {
-                    album: (/album\|(.+)/g.exec(metadata) || [])[1],
-                    artist: (/artist\|(.+)/g.exec(metadata) || [])[1],
-                    name: (/title\|(.+)/g.exec(metadata) || [])[1]
+                    album: (/album\|(.+)/g.exec(metadata) || [])[1] || '',
+                    artist: (/artist\|(.+)/g.exec(metadata) || [])[1] || '',
+                    name: (/title\|(.+)/g.exec(metadata) || [])[1] || '',
+                    id: trackId,
+                    imageUrl: artUrl,
+                    durationMs: Math.floor(lengthUs / 1000)
                 },
                 isRunning: true
             };
