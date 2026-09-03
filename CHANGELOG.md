@@ -2,6 +2,11 @@
 
 All notable changes to the "ReSound" extension will be documented in this file.
 
+## [1.2.0] - 2026-09-03
+
+### Added
+- **Kanji to Romaji Lyrics Converter**: Added a toggle button (`Aあ`) in the Now Playing lyrics header. Clicking this instantly translates Japanese Kanji/Kana lyrics into Latin alphabet (Romaji) so you can sing along easily!
+
 ## [1.1.5] - 2026-09-03
 
 ### Fixed

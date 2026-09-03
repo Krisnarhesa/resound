@@ -11,6 +11,30 @@ import { cleanToken } from '../utils/utils';
 import { favoritesManager } from '../utils/favorites-manager';
 import { spotifyFetch } from '../utils/spotify-fetch';
 
+const Kuroshiro = require('kuroshiro').default;
+const KuromojiAnalyzer = require('kuroshiro-analyzer-kuromoji');
+
+let kuroshiroInstance: any = null;
+let isKuroshiroInitializing = false;
+
+async function getKuroshiro() {
+    if (kuroshiroInstance) return kuroshiroInstance;
+    if (isKuroshiroInitializing) {
+        while (isKuroshiroInitializing) { await new Promise(r => setTimeout(r, 100)); }
+        return kuroshiroInstance;
+    }
+    isKuroshiroInitializing = true;
+    try {
+        const k = new Kuroshiro();
+        await k.init(new KuromojiAnalyzer());
+        kuroshiroInstance = k;
+    } catch (e) {
+        console.error("Kuroshiro init error", e);
+    }
+    isKuroshiroInitializing = false;
+    return kuroshiroInstance;
+}
+
 export interface SyncedLyricLine {
     timeMs: number;
     text: string;
@@ -26,8 +50,10 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
     private artistName: string = '';
     private albumName: string = '';
     private albumArt: string = '';
+    private originalLyrics: SyncedLyricLine[] = [];
     private lyrics: SyncedLyricLine[] = [];
     private isLoadingLyrics: boolean = false;
+    private isRomajiEnabled: boolean = false;
     private storeUnsub: (() => void) | undefined;
     private isPlaying: boolean = false;
     private isShuffle: boolean = false;
@@ -124,7 +150,7 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
         });
 
         webviewView.webview.onDidReceiveMessage(async (message) => {
-            if (['previous', 'playPause', 'next', 'seek', 'toggleShuffle', 'toggleLike'].includes(message.command)) {
+            if (['previous', 'playPause', 'next', 'seek', 'toggleShuffle', 'toggleLike', 'toggleRomaji'].includes(message.command)) {
                 await this.handleControlCommand(message);
             }
         });
@@ -135,6 +161,18 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
 
     private async handleControlCommand(message: any) {
         const command = message.command;
+
+        if (command === 'toggleRomaji') {
+            this.isRomajiEnabled = !this.isRomajiEnabled;
+            // update Webview immediately with spinner if needed, or just let applyLyrics handle it
+            this.isLoadingLyrics = true;
+            this.updateWebview();
+            await this.applyLyrics();
+            this.isLoadingLyrics = false;
+            this.updateWebview();
+            return;
+        }
+
         const state = getState();
         const token = cleanToken(state.loginState?.accessToken);
 
@@ -258,17 +296,17 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
             if (res.ok) {
                 const data: any = await res.json();
                 if (data.syncedLyrics) {
-                    this.lyrics = this.parseLrc(data.syncedLyrics);
+                    this.originalLyrics = this.parseLrc(data.syncedLyrics);
                     this.isLoadingLyrics = false;
-                    this.updateWebview();
+                    await this.applyLyrics();
                     return;
                 } else if (data.plainLyrics) {
-                    this.lyrics = data.plainLyrics.split('\n').filter((l: string) => l.trim()).map((l: string) => ({
+                    this.originalLyrics = data.plainLyrics.split('\n').filter((l: string) => l.trim()).map((l: string) => ({
                         timeMs: -1,
                         text: l.trim()
                     }));
                     this.isLoadingLyrics = false;
-                    this.updateWebview();
+                    await this.applyLyrics();
                     return;
                 }
             }
@@ -281,25 +319,47 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
                 if (Array.isArray(results) && results.length > 0) {
                     const best = results.find((r: any) => r.syncedLyrics) || results[0];
                     if (best && best.syncedLyrics) {
-                        this.lyrics = this.parseLrc(best.syncedLyrics);
+                        this.originalLyrics = this.parseLrc(best.syncedLyrics);
                         this.isLoadingLyrics = false;
-                        this.updateWebview();
+                        await this.applyLyrics();
                         return;
                     } else if (best && best.plainLyrics) {
-                        this.lyrics = best.plainLyrics.split('\n').filter((l: string) => l.trim()).map((l: string) => ({
+                        this.originalLyrics = best.plainLyrics.split('\n').filter((l: string) => l.trim()).map((l: string) => ({
                             timeMs: -1,
                             text: l.trim()
                         }));
                         this.isLoadingLyrics = false;
-                        this.updateWebview();
+                        await this.applyLyrics();
                         return;
                     }
                 }
             }
         } catch (e) { /* fallback */ }
 
-        this.lyrics = [{ timeMs: -1, text: 'Lyrics not found for this track.' }];
+        this.originalLyrics = [{ timeMs: -1, text: 'Lyrics not found for this track.' }];
         this.isLoadingLyrics = false;
+        await this.applyLyrics();
+    }
+
+    private async applyLyrics() {
+        if (!this.isRomajiEnabled) {
+            this.lyrics = this.originalLyrics;
+        } else {
+            const k = await getKuroshiro();
+            if (k) {
+                // To avoid blocking too much, convert all lines
+                try {
+                    this.lyrics = await Promise.all(this.originalLyrics.map(async line => {
+                        const text = await k.convert(line.text, { to: 'romaji', mode: 'spaced' });
+                        return { ...line, text };
+                    }));
+                } catch (err) {
+                    this.lyrics = this.originalLyrics;
+                }
+            } else {
+                this.lyrics = this.originalLyrics;
+            }
+        }
         this.updateWebview();
     }
 
@@ -587,6 +647,23 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
         flex-shrink: 0;
     }
 
+    .lyrics-badges { display: flex; align-items: center; gap: 8px; }
+    .btn-romaji {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: rgba(255, 255, 255, 0.6);
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-transform: uppercase;
+    }
+    .btn-romaji:hover { color: #fff; background: rgba(255, 255, 255, 0.2); }
+    .btn-romaji.active { color: #1DB954; background: rgba(29, 185, 84, 0.15); border-color: rgba(29, 185, 84, 0.3); }
+
+
     .lyrics-title-group {
         display: flex;
         align-items: center;
@@ -832,7 +909,10 @@ export class NowPlayingWebviewProvider implements WebviewViewProvider {
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="#1DB954"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
                 <span class="lyrics-heading">Synced Lyrics</span>
             </div>
-            <span class="badge-live">Live</span>
+            <div class="lyrics-badges">
+                <button class="btn-romaji ${this.isRomajiEnabled ? 'active' : ''}" onclick="sendCmd('toggleRomaji')" title="Toggle Romaji Translation (Kanji/Kana to Latin)">Aあ</button>
+                <span class="badge-live">Live</span>
+            </div>
         </div>
         <div class="lyrics-scroll" id="lyricsBody">
             ${lyricsHtml}
