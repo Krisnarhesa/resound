@@ -5,6 +5,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/krisnarhesa/resound)
 
+> [!IMPORTANT]
+> **Spotify Premium Required**
+> This extension requires an active **Spotify Premium** subscription to function correctly. If your account is on the Free tier (or your Premium subscription has expired), you will encounter `403 Forbidden` or `Session Expired` errors when trying to use playback controls. This is a strict limitation enforced by the Spotify Developer API and is not a bug with the extension.
+
 **ReSound** is an enterprise-grade, high-performance Spotify integration and real-time synchronized lyrics extension engineered for Visual Studio Code and Antigravity IDE. It delivers a native, zero-latency desktop playback controller alongside 60FPS time-synced karaoke lyrics directly within the editor sidebar.
 
 ---
